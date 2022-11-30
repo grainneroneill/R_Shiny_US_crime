@@ -16,7 +16,8 @@ ui <- dashboardPage(
   
   dashboardSidebar(
     sidebarMenu(
-      menuItem("Time Series by State", tabName = "timeseries", icon = icon("chart-line")),
+      menuItem("Welcome", tabName = "welcome", icon = icon("house")),
+      menuItem("Time Series", tabName = "timeseries", icon = icon("chart-line")),
       menuItem("US Map", tabName = "map", icon = icon("map")),
       menuItem("About Me", tabName = "about", icon = icon("face-smile"))
     )
@@ -24,13 +25,28 @@ ui <- dashboardPage(
   
   dashboardBody(
     tabItems(
+      # Welcome
+      tabItem(tabName = "welcome",
+              h1("Welcome!", 
+                 style="text-align:center"),
+              h2("This is a Shiny App all about US Crime Data!", 
+                 style="text-align:center"),
+              h4("Explore the interactive visualization tools in 
+                 the Time Series and US Map tabs.", 
+                 style="text-align:center"),
+              h1("・ ・ ・ ・ ・", 
+                 style="text-align:center"),
+              div(img(src='map.gif', width="100%"), style="text-align: center;")
+              ),
+      
       # Time Series by State
       tabItem(tabName = "timeseries",
+              h2("Time Series of Crime by State"), #heading
               # Sidebar
               sidebarLayout(
                 sidebarPanel(
                   # select time range
-                  chooseSliderSkin("Simple"),
+                  chooseSliderSkin("Flat"),
                   sliderInput("year", "Years", value = c(2005, 2014), min = 1975, max = 2014),
                   
                   # drop down menu for crime type
@@ -45,14 +61,19 @@ ui <- dashboardPage(
                 mainPanel(
                   
                   textOutput("error"), # Allows me to display text in main panel when missing data
+                  tags$head(tags$style("#error{color: red;
+                                 font-size: 20px;
+                                 font-style: italic;
+                                 }")),
                   
-                  plotOutput("timePlot")
+                  plotOutput("timePlot", height = 600)
                   )
                 )
               ),
       
       # US Map
       tabItem(tabName = "map",
+              h2("Heat Map of US Crime by Year"),
               # Sidebar
               sidebarLayout(
                 sidebarPanel(
@@ -68,13 +89,23 @@ ui <- dashboardPage(
                   ),
                 # Show plot
                 mainPanel(
-                  plotOutput("mapPlot")
+                  plotOutput("mapPlot", height = 600)
                 )
               )
       ),
       
       # About Me
-      tabItem(tabName = "about")
+      tabItem(tabName = "about",
+              h2("Grainne O'Neill", 
+                 style="text-align:center"),
+              h4("Aspiring Data Scientist and current student at NYC Data Science Academy", 
+                 style="text-align:center"),
+              
+              div(img(src='photo.png', height="280"), style="text-align: center;"),
+              
+              uiOutput("tab1"),
+              uiOutput("tab2")
+              )
       
       )
   )
@@ -109,19 +140,22 @@ server <- function(input, output) {
     # plot (chosen crime, in chosen year range, in chosen state. one line for each city)
     # if there's no data for the state, display message
     if (dim(crime_subset[crime_subset$state == input$st, ])[1] == 0) {
-      
     output$error <- renderText({ 
       "No data available."
       })
-    
     } else {
+      output$error <- renderText({ 
+        ""
+      })
+    }
+    
     colnames(crime_subset) = c("report_year", "y", "city", "state") # rename columns so i can use arbitrary y
     crime_subset[(crime_subset$report_year >= input$year[1]) &
                    (crime_subset$report_year <= input$year[2]) &
                    (crime_subset$state == input$st), ] %>%
       ggplot(aes(report_year, y, group=city, color=city)) + geom_line() +
-      labs(title=paste(input$var, "Per Capita"), x ="Years", y = paste(input$var, "per 100,000 people"))
-    }
+      labs(title=paste(input$var, "Per Capita"), x ="Years", y = paste(input$var, "per 100,000 people")) +
+      theme(text = element_text(size = 15)) # font size
   })
   
   
@@ -166,13 +200,48 @@ server <- function(input, output) {
     map.df <- merge(states,crime_states_yr, by="region", all.crime_states_yr=T)
     map.df <- map.df[order(map.df$order),]
     #plot
+    # create midrange function for labels
+    midrange <- function(x) {
+      z <- (max(x)+min(x))/2
+      z
+    }
+    label_data = map.df %>% group_by(region) %>% summarise_at(vars(long, lat), midrange)
+    label_data$region = state.abb[match(label_data$region,tolower(state.name))]
     ggplot(map.df, aes(x=long,y=lat,group=group)) +
       geom_polygon(aes(fill=y)) +
       geom_path() + 
-      scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90") +
-      labs(title=paste(input$cr, "Per Capita")) +
+      scale_fill_gradientn(colours=rev(heat.colors(10)), 
+                           name = NULL,   # no label over colorbar
+                           limits=c(0, max(crime_states_sub$y)), # same color bar for all years of each crime type
+                           na.value="grey90") +
+      geom_label(data = label_data,             # state labels
+                aes(x=long,y=lat,label= region, group=NULL),
+                label.size = 0,
+                size=4) +
+      labs(title=paste(input$cr, "Per Capita in", input$yr), 
+           x="", y="") + 
+      theme(text = element_text(size = 15), # font size
+            axis.ticks.x = element_blank(), # remove lat and long ticks and labels
+            axis.text.x = element_blank(),
+            axis.ticks.y = element_blank(),
+            axis.text.y = element_blank()) + 
       coord_map()
+  })
+  
+  
+  
+  
+  # About Me
+  
+  
+  linkedin_url = a("LinkedIn", href="https://linkedin.com/in/grainneroneill")
+  github_link = a("GitHub", href="https://github.com/grainneroneill")
     
+  output$tab1 <- renderUI({
+    tagList("Find me on LinkedIn:", linkedin_url)
+  })
+  output$tab2 <- renderUI({
+    tagList("Check out my GitHub:", github_link)
   })
   
   }
