@@ -3,11 +3,12 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 df = read.csv("crime.csv")
 
-# remove rows
-df = na.omit(df)
-
-# drop agency_code
+# drop agency_code and months_reported
 df = df[ , !(names(df) %in% c("agency_code"))]
+df = df[ , !(names(df) %in% c("months_reported"))]
+
+# remove rows with na
+df = na.omit(df)
 
 # create state column from last 2 letters of agency_jurisdiction
 df$state = substr(df$agency_jurisdiction, start = nchar(df$agency_jurisdiction)-1, stop = nchar(df$agency_jurisdiction))
